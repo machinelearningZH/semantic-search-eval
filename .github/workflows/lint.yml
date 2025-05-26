@@ -1,0 +1,34 @@
+name: Lint
+
+on:
+  push:
+    branches: ["**"]
+    
+jobs:
+  ruff:
+    name: Run Ruff
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip3 install uv
+
+      - name: Set up virtual environment and install dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv sync
+
+      - name: Run Ruff
+        run: |
+          source .venv/bin/activate
+          ruff check .
+

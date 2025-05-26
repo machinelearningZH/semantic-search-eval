@@ -1,0 +1,33 @@
+name: Test
+
+on:
+  push:
+    branches: ["**"]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: pip3 install uv
+
+      - name: Set up virtual environment and install dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv sync
+
+      - name: Run tests
+        run: |
+          source .venv/bin/activate
+          pytest

@@ -1,0 +1,50 @@
+# Output directory to save results and plots
+folder: results
+
+# Testset settings
+name: example # What the testset will be named
+docs: example.docs.parquet # Can be a path to a CSV file or a parquet file with column "text"
+queries: null # Can be a path to a CSV file or a parquet file with columns "search_query" and "idx" (pointing to document id related to query), if set to "null" queries will automatically be generated (see next setting!)
+is-public-data: false # Whether queries can be generated with OpenAI (only matters if no queries are provided)
+queries-per-doc: 10 # Number of queries to generate per document if queries is set to null
+spacy-model: de_core_news_sm # Used to create random keyword queries if no queries are provided
+openai-model: gpt-4.1-mini # Used to generate queries if is-public-data is set to true
+
+# Metrics for the evaluation
+metrics:
+  - accuracy@1 # Top-1 accuracy: checks if gold doc is rank 1
+  - accuracy@5 # Top-5 accuracy: checks if gold doc is in top 5
+  - accuracy@10 # Top-10 accuracy: same logic for top 10
+  - latency # Time taken for full inference per model
+
+# Global max token length for truncation (needs to be based on smallest model max len for fair comparison)
+max-len: 512
+
+# Configs for all models to evaluate
+# Add new models by specifying the corresponding HugginFace or OpenAI model path.
+models:
+  lexical:
+    bm25: de_core_news_sm # uses spacy model to lemmatize before indexing
+
+  intfloat:
+    intfloat-small: intfloat/multilingual-e5-small # max-len 512
+    intfloat-base: intfloat/multilingual-e5-base # max-len 512
+
+  intfloat-instruct:
+    intfloat-instruct: intfloat/multilingual-e5-large-instruct # max-len 512
+
+  huggingface:
+    jina-v2: jinaai/jina-embeddings-v2-base-de # max-len 8192
+    all-MiniLM-v2: sentence-transformers/all-MiniLM-L6-v2 # max-len 512
+    granite: ibm-granite/granite-embedding-278m-multilingual # max-len 512
+    nomic: 
+      model: nomic-ai/nomic-embed-text-v2-moe # max-len 512
+      use_query_prompt: true
+      use_passage_prompt: true
+    snowflake:
+      model: Snowflake/snowflake-arctic-embed-l-v2.0 # max-len 8192
+      use_query_prompt: true
+
+  # open-ai:
+  #   open-ai-3-small: text-embedding-3-small # max-len 8191 
+

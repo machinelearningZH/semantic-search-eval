@@ -1,0 +1,62 @@
+[project]
+name = "semsearcheval"
+version = "0.1.0"
+description = "A package for evaluating search-based models using various metrics."
+authors = [
+  { name = "Statistisches Amt Kanton Zürich, Team Data", email = "datashop@statistik.zh.ch" },
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "accelerate>=1.6.0",
+    "einops>=0.8.1",
+    "de-core-news-sm",
+    "openai>=1.77.0",
+    "ordered-set>=4.1.0",
+    "polars>=1.29.0",
+    "pytest-mock>=3.14.0",
+    "rank-bm25>=0.2.2",
+    "ruamel-yaml>=0.18.10",
+    "seaborn>=0.13.2",
+    "sentence-transformers>=4.1.0",
+    "spacy>=3.8.5",
+    "tiktoken>=0.9.0",
+    "dotenv>=0.9.9",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "pytest>=8.3.5",
+    "pytest-clarity>=1.0.1",
+    "ruff>=0.11.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+      packages = ["semsearcheval"]
+
+[tool.uv.sources]
+de-core-news-sm = { url = "https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl" }
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["E", "F", "I001", "I002"]
+ignore = ["E501"]
+preview = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2

@@ -1,0 +1,24 @@
+# Configuration for testing purposes
+folder: test_results
+name: test_example
+docs: tests/data/test_texts.csv
+queries: tests/data/test_queries.csv
+is-public-data: false
+queries-per-doc: 1
+spacy-model: de_core_news_sm
+openai-model: gpt-4.1-mini
+
+metrics:
+  - accuracy@1
+  - accuracy@5
+  - accuracy@10
+  - latency
+
+max-len: 256
+
+models:
+  lexical:
+    bm25: de_core_news_sm
+
+  huggingface:
+    jina-v2: jinaai/jina-embeddings-v2-base-de
