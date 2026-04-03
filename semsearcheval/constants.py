@@ -4,7 +4,7 @@ Central registry for supported model and metric classes used in config.
 
 from typing import Dict, Type
 
-from semsearcheval.metrics import Accuracy, Latency, Metric
+from semsearcheval.metrics import Accuracy, Latency, Metric, NDCG
 from semsearcheval.models import (
     BM25Model,
     HuggingFaceModel,
@@ -23,4 +23,8 @@ model_registry: Dict[str, Type[Model]] = {
     "open-ai": OpenAIModel,
 }
 
-metric_registry: Dict[str, Type[Metric]] = {"accuracy": Accuracy, "latency": Latency}
+metric_registry: Dict[str, Type[Metric]] = {
+    "accuracy": Accuracy,
+    "latency": Latency,
+    "ndcg": NDCG,
+}

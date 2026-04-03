@@ -15,6 +15,7 @@ metrics:
   - accuracy@1 # Top-1 accuracy: checks if gold doc is rank 1
   - accuracy@5 # Top-5 accuracy: checks if gold doc is in top 5
   - accuracy@10 # Top-10 accuracy: same logic for top 10
+  - ndcg@10 # NDCG@10: rewards higher-ranked gold docs (position-aware)
   - latency # Time taken for full inference per model
 
 # Global max token length for truncation (needs to be based on smallest model max len for fair comparison)
@@ -44,6 +45,20 @@ models:
     snowflake:
       model: Snowflake/snowflake-arctic-embed-l-v2.0 # max-len 8192
       use_query_prompt: true
+
+    # Example: custom prefix strings prepended to queries/documents at inference time.
+    # Cannot be combined with use_query_prompt / use_passage_prompt.
+    # my-custom-prefix-model:
+    #   model: some-org/some-model
+    #   set_custom_query_prefix: "query: "
+    #   set_custom_doc_prefix: "passage: "
+
+    # Example: adapter switching for models with named "query" / "document" adapters.
+    # Calls model.set_adapter("query") before encoding queries and
+    # model.set_adapter("document") before encoding documents.
+    # my-adapter-model:
+    #   model: some-org/some-adapter-model
+    #   use_adapters: true
 
   # open-ai:
   #   open-ai-3-small: text-embedding-3-small # max-len 8191 

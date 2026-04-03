@@ -8,7 +8,7 @@ from semsearcheval.utils import truncate_to_max_len
 def test_config_parsing(test_config):
     assert test_config["folder"] == "test_results"
     assert test_config["name"] == "test_example"
-    assert test_config["metrics"] == ["accuracy@1", "accuracy@5", "accuracy@10", "latency"]
+    assert test_config["metrics"] == ["accuracy@1", "accuracy@5", "accuracy@10", "ndcg@10", "latency"]
 
 
 def test_load_dataset(test_config):
@@ -23,7 +23,7 @@ def test_load_dataset(test_config):
 
 def test_load_metrics(test_config):
     metrics = load_metrics(test_config["metrics"])
-    assert len(metrics) == 4
+    assert len(metrics) == 5
     assert all([metric.name in test_config["metrics"] for metric in metrics])
 
 

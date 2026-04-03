@@ -1,6 +1,7 @@
 import typing as t
 
 import numpy as np
+import pytest
 from pydantic import BaseModel
 from pytest_mock import MockerFixture
 
@@ -27,6 +28,37 @@ def test_huggingface_model(test_queries, test_docs):
     assert np.argmax(similarity[0]) == 0
     assert np.argmax(similarity[1]) == 1
     assert np.argmax(similarity[2]) == 2
+
+
+def test_huggingface_mutual_exclusivity():
+    """Cannot use both prompt_name and custom prefix at the same time."""
+    with pytest.raises(ValueError, match="cannot use both"):
+        HuggingFaceModel(
+            "bad-model",
+            "some/model",
+            use_query_prompt=True,
+            set_custom_query_prefix="query: ",
+        )
+
+
+def test_huggingface_custom_prefix_init():
+    """Custom prefix options are stored correctly."""
+    model = HuggingFaceModel(
+        "prefix-model",
+        "some/model",
+        set_custom_query_prefix="search_query: ",
+        set_custom_doc_prefix="search_document: ",
+    )
+    assert model.custom_query_prefix == "search_query: "
+    assert model.custom_doc_prefix == "search_document: "
+    assert model.query_name is None
+    assert model.passage_name is None
+
+
+def test_huggingface_adapters_init():
+    """Adapter flag is stored correctly."""
+    model = HuggingFaceModel("adapter-model", "some/model", use_adapters=True)
+    assert model.use_adapters is True
 
 
 def test_openai_model(mocker: MockerFixture, test_queries, test_docs):

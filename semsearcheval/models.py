@@ -55,7 +55,14 @@ class HuggingFaceModel(Model):
     """
     A model that uses Hugging Face's SentenceTransformers to generate embeddings.
 
-    Supports optional query and passage prompts for specialized encoding.
+    Supports two mutually exclusive prefix mechanisms:
+    - prompt_name: uses SentenceTransformer's built-in prompt_name feature
+      (via use_query_prompt / use_passage_prompt booleans).
+    - custom prefix: raw string prepended to each text at inference time
+      (via set_custom_query_prefix / set_custom_doc_prefix strings).
+
+    Also supports adapter switching for models with named "query" / "document"
+    adapters (via use_adapters boolean).
     """
 
     def __init__(
@@ -64,11 +71,27 @@ class HuggingFaceModel(Model):
         model_path: str,
         use_query_prompt: bool = False,
         use_passage_prompt: bool = False,
+        set_custom_query_prefix: str = None,
+        set_custom_doc_prefix: str = None,
+        use_adapters: bool = False,
     ) -> None:
         super().__init__(name, model_path)
         self.identifier = f"open-source model {model_path}"
+
+        # Validate: prompt_name and custom prefix are mutually exclusive.
+        has_prompt_name = use_query_prompt or use_passage_prompt
+        has_custom_prefix = set_custom_query_prefix is not None or set_custom_doc_prefix is not None
+        if has_prompt_name and has_custom_prefix:
+            raise ValueError(
+                f"Model '{name}': cannot use both prompt_name (use_query_prompt / use_passage_prompt) "
+                "and custom prefix (set_custom_query_prefix / set_custom_doc_prefix) at the same time."
+            )
+
         self.query_name = "query" if use_query_prompt else None
         self.passage_name = "passage" if use_passage_prompt else None
+        self.custom_query_prefix = set_custom_query_prefix
+        self.custom_doc_prefix = set_custom_doc_prefix
+        self.use_adapters = use_adapters
 
     def load_model(self) -> None:
         """Load the SentenceTransformer model."""
@@ -84,16 +107,39 @@ class HuggingFaceModel(Model):
         )
 
     def encode_with_prompt(self, input: List[str], prompt: str):
-        """Helper function to encode input with a specific prompt if needed."""
+        """Helper function to encode input with a specific prompt_name if needed."""
         if prompt:
             return self.encode(input, prompt_name=prompt)
         return self.encode(input)
 
+    def _prepend_prefix(self, texts: List[str], prefix: str) -> List[str]:
+        """Prepends a custom prefix string to each text."""
+        if prefix is None:
+            return texts
+        return [f"{prefix}{text}" for text in texts]
+
     def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
         """Computes the cosine similarity between query and document embeddings."""
-        queries = self.encode_with_prompt(queries, self.query_name)
-        docs = self.encode_with_prompt(docs, self.passage_name)
-        return self.model.similarity(queries, docs).numpy()
+        # Custom prefix path: prepend strings and encode without prompt_name.
+        if self.custom_query_prefix is not None or self.custom_doc_prefix is not None:
+            queries = self._prepend_prefix(queries, self.custom_query_prefix)
+            docs = self._prepend_prefix(docs, self.custom_doc_prefix)
+            query_emb = self.encode(queries)
+            doc_emb = self.encode(docs)
+            return self.model.similarity(query_emb, doc_emb).numpy()
+
+        # Adapter path: switch adapter before encoding each set.
+        if self.use_adapters:
+            self.model.set_adapter("query")
+            query_emb = self.encode_with_prompt(queries, self.query_name)
+            self.model.set_adapter("document")
+            doc_emb = self.encode_with_prompt(docs, self.passage_name)
+            return self.model.similarity(query_emb, doc_emb).numpy()
+
+        # Default path: use prompt_name mechanism (or plain encode if no prompts).
+        query_emb = self.encode_with_prompt(queries, self.query_name)
+        doc_emb = self.encode_with_prompt(docs, self.passage_name)
+        return self.model.similarity(query_emb, doc_emb).numpy()
 
 
 class IntFloatModel(HuggingFaceModel):
