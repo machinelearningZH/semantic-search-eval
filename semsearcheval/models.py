@@ -11,6 +11,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from semsearcheval.data import Result
+from semsearcheval.logger import logger
 
 
 class Model(ABC):
@@ -55,15 +56,24 @@ class HuggingFaceModel(Model):
     """
     A model that uses Hugging Face's SentenceTransformers to generate embeddings.
 
-    Supports two mutually exclusive prefix mechanisms:
-    - prompt_name: uses SentenceTransformer's built-in prompt_name feature
-      (via use_query_prompt / use_passage_prompt booleans).
-    - custom prefix: raw string prepended to each text at inference time
-      (via set_custom_query_prefix / set_custom_doc_prefix strings).
+    Supports several encoding mechanisms (checked in priority order):
 
-    Also supports adapter switching for models with named "query" / "document"
-    adapters (via use_adapters boolean).
+    1. jina_adapter ("v3" or "v5"): uses hardcoded task/prompt_name pairs for
+       Jina embedding models. Overrides all other prompt/prefix settings.
+    2. custom prefix (set_custom_query_prefix / set_custom_doc_prefix): raw
+       strings prepended to each text at inference time. Mutually exclusive
+       with prompt_name booleans.
+    3. prompt_name (use_query_prompt / use_passage_prompt): uses
+       SentenceTransformer's built-in prompt_name feature.
+    4. Default: plain encode with no prompt or task.
     """
+
+    # Hardcoded Jina adapter configurations.
+    # Each maps to (query_task, query_prompt, doc_task, doc_prompt).
+    JINA_CONFIGS = {
+        "v3": ("retrieval.query", "retrieval.query", "retrieval.passage", "retrieval.passage"),
+        "v5": ("retrieval", "query", "retrieval", "document"),
+    }
 
     def __init__(
         self,
@@ -73,10 +83,36 @@ class HuggingFaceModel(Model):
         use_passage_prompt: bool = False,
         set_custom_query_prefix: str = None,
         set_custom_doc_prefix: str = None,
-        use_adapters: bool = False,
+        jina_adapter: str = None,
     ) -> None:
         super().__init__(name, model_path)
         self.identifier = f"open-source model {model_path}"
+
+        # Jina adapter overrides all other prompt/prefix settings.
+        if jina_adapter is not None:
+            if jina_adapter not in self.JINA_CONFIGS:
+                raise ValueError(
+                    f"Model '{name}': jina_adapter must be one of "
+                    f"{list(self.JINA_CONFIGS.keys())}, got '{jina_adapter}'."
+                )
+            has_other = (
+                use_query_prompt or use_passage_prompt
+                or set_custom_query_prefix is not None
+                or set_custom_doc_prefix is not None
+            )
+            if has_other:
+                logger.info(
+                    f"Model '{name}': jina_adapter='{jina_adapter}' is set. "
+                    "Other prompt/prefix parameters will be ignored."
+                )
+            self.jina_adapter = jina_adapter
+            self.query_name = None
+            self.passage_name = None
+            self.custom_query_prefix = None
+            self.custom_doc_prefix = None
+            return
+
+        self.jina_adapter = None
 
         # Validate: prompt_name and custom prefix are mutually exclusive.
         has_prompt_name = use_query_prompt or use_passage_prompt
@@ -91,20 +127,23 @@ class HuggingFaceModel(Model):
         self.passage_name = "passage" if use_passage_prompt else None
         self.custom_query_prefix = set_custom_query_prefix
         self.custom_doc_prefix = set_custom_doc_prefix
-        self.use_adapters = use_adapters
 
     def load_model(self) -> None:
         """Load the SentenceTransformer model."""
         self.model = SentenceTransformer(self.model_path, trust_remote_code=True)
 
-    def encode(self, segments: List[str], prompt_name: str = None) -> List[List[float]]:
+    def encode(
+        self, segments: List[str], prompt_name: str = None, task: str = None
+    ) -> List[List[float]]:
         """Encodes the input segments into embeddings using the SentenceTransformer model."""
-        return self.model.encode(
-            segments,
+        kwargs = dict(
             normalize_embeddings=True,
             prompt_name=prompt_name,
             show_progress_bar=True,
         )
+        if task is not None:
+            kwargs["task"] = task
+        return self.model.encode(segments, **kwargs)
 
     def encode_with_prompt(self, input: List[str], prompt: str):
         """Helper function to encode input with a specific prompt_name if needed."""
@@ -120,20 +159,19 @@ class HuggingFaceModel(Model):
 
     def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
         """Computes the cosine similarity between query and document embeddings."""
+        # Jina adapter path: use hardcoded task + prompt_name per role.
+        if self.jina_adapter is not None:
+            q_task, q_prompt, d_task, d_prompt = self.JINA_CONFIGS[self.jina_adapter]
+            query_emb = self.encode(queries, prompt_name=q_prompt, task=q_task)
+            doc_emb = self.encode(docs, prompt_name=d_prompt, task=d_task)
+            return self.model.similarity(query_emb, doc_emb).numpy()
+
         # Custom prefix path: prepend strings and encode without prompt_name.
         if self.custom_query_prefix is not None or self.custom_doc_prefix is not None:
             queries = self._prepend_prefix(queries, self.custom_query_prefix)
             docs = self._prepend_prefix(docs, self.custom_doc_prefix)
             query_emb = self.encode(queries)
             doc_emb = self.encode(docs)
-            return self.model.similarity(query_emb, doc_emb).numpy()
-
-        # Adapter path: switch adapter before encoding each set.
-        if self.use_adapters:
-            self.model.set_adapter("query")
-            query_emb = self.encode_with_prompt(queries, self.query_name)
-            self.model.set_adapter("document")
-            doc_emb = self.encode_with_prompt(docs, self.passage_name)
             return self.model.similarity(query_emb, doc_emb).numpy()
 
         # Default path: use prompt_name mechanism (or plain encode if no prompts).

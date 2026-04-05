@@ -53,12 +53,14 @@ models:
     #   set_custom_query_prefix: "query: "
     #   set_custom_doc_prefix: "passage: "
 
-    # Example: adapter switching for models with named "query" / "document" adapters.
-    # Calls model.set_adapter("query") before encoding queries and
-    # model.set_adapter("document") before encoding documents.
-    # my-adapter-model:
-    #   model: some-org/some-adapter-model
-    #   use_adapters: true
+    # Example: Jina adapter support. Passes hardcoded task + prompt_name
+    # to encode() for query/document roles. Overrides other prompt/prefix settings.
+    # jina-v3:
+    #   model: jinaai/jina-embeddings-v3
+    #   jina_adapter: v3
+    # jina-v5-small:
+    #   model: jinaai/jina-embeddings-v5-text-small
+    #   jina_adapter: v5
 
   # open-ai:
   #   open-ai-3-small: text-embedding-3-small # max-len 8191 
