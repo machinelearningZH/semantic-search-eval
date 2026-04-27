@@ -7,22 +7,24 @@ authors = [
 ]
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
-    "accelerate>=1.6.0",
-    "einops>=0.8.1",
+    "accelerate>=1.13.0",
+    "einops>=0.8.2",
     "de-core-news-sm",
     "openai>=1.77.0",
     "ordered-set>=4.1.0",
-    "polars>=1.29.0",
-    "pytest-mock>=3.14.0",
+    "polars>=1.40.1",
+    "pytest-mock>=3.15.1",
     "rank-bm25>=0.2.2",
-    "ruamel-yaml>=0.18.10",
+    "ruamel-yaml>=0.19.1",
     "seaborn>=0.13.2",
-    "sentence-transformers>=4.1.0",
-    "spacy>=3.8.5",
-    "tiktoken>=0.9.0",
+    "sentence-transformers<=5.4.1",
+    "transformers<5.0.0",
+    "spacy>=3.8.14",
+    "tiktoken>=0.12.0",
     "dotenv>=0.9.9",
+    "peft>=0.19.1",
 ]
 
 [dependency-groups]
