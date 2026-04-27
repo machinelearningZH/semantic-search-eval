@@ -59,6 +59,8 @@ class Model(ABC):
 class HuggingFaceModel(Model):
     """
     A model that uses Hugging Face's SentenceTransformers to generate embeddings.
+
+    Supports optional built-in prompts and custom prefixes for queries and passages.
     """
 
     def __init__(
@@ -107,9 +109,8 @@ class HuggingFaceModel(Model):
             normalize_embeddings=True,
             prompt_name=prompt_name,
             show_progress_bar=True,
+            task=task,
         )
-        if task is not None:
-            kwargs["task"] = task
         return self.model.encode(segments, **kwargs)
 
     def encode_with_prompt(
