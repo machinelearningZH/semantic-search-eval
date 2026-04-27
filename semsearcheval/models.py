@@ -61,13 +61,6 @@ class HuggingFaceModel(Model):
     A model that uses Hugging Face's SentenceTransformers to generate embeddings.
     """
 
-    # Hardcoded Jina adapter configurations.
-    # Each maps to (query_task, query_prompt, doc_task, doc_prompt).
-    JINA_CONFIGS = {
-        "v3": ("retrieval.query", "retrieval.query", "retrieval.passage", "retrieval.passage"),
-        "v5": ("retrieval", "query", "retrieval", "document"),
-    }
-
     def __init__(
         self,
         name: str,
