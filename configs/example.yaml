@@ -27,40 +27,40 @@ models:
   lexical:
     bm25: de_core_news_sm # uses spacy model to lemmatize before indexing
 
-  intfloat:
-    intfloat-small: intfloat/multilingual-e5-small # max-len 512
-    intfloat-base: intfloat/multilingual-e5-base # max-len 512
-
-  intfloat-instruct:
-    intfloat-instruct: intfloat/multilingual-e5-large-instruct # max-len 512
-
   huggingface:
     jina-v2: jinaai/jina-embeddings-v2-base-de # max-len 8192
     all-MiniLM-v2: sentence-transformers/all-MiniLM-L6-v2 # max-len 512
     granite: ibm-granite/granite-embedding-278m-multilingual # max-len 512
     nomic: 
       model: nomic-ai/nomic-embed-text-v2-moe # max-len 512
-      use_query_prompt: true
-      use_passage_prompt: true
+      set_builtin_query_prompt: query
+      set_builtin_passage_prompt: passage
     snowflake:
       model: Snowflake/snowflake-arctic-embed-l-v2.0 # max-len 8192
-      use_query_prompt: true
-
-    # Example: custom prefix strings prepended to queries/documents at inference time.
-    # Cannot be combined with use_query_prompt / use_passage_prompt.
-    # my-custom-prefix-model:
-    #   model: some-org/some-model
-    #   set_custom_query_prefix: "query: "
-    #   set_custom_doc_prefix: "passage: "
-
-    # Example: Jina adapter support. Passes hardcoded task + prompt_name
-    # to encode() for query/document roles. Overrides other prompt/prefix settings.
-    # jina-v3:
-    #   model: jinaai/jina-embeddings-v3
-    #   jina_adapter: v3
-    # jina-v5-small:
-    #   model: jinaai/jina-embeddings-v5-text-small
-    #   jina_adapter: v5
+      set_builtin_query_prompt: query
+    jina-v3:
+      model: jinaai/jina-embeddings-v3 # max-len 8192
+      set_builtin_query_prompt: retrieval.query
+      set_builtin_passage_prompt: retrieval.passage
+      set_passage_task_prompt: retrieval.passage
+      set_query_task_prompt: retrieval.query
+    jina-v5-small:
+      model: jinaai/jina-embeddings-v5-text-small # max-len 32768
+      set_query_task_prompt: retrieval
+      set_passage_task_prompt: retrieval
+      set_builtin_passage_prompt: document
+      set_builtin_query_prompt: query
+    intfloat-small:
+      model: intfloat/multilingual-e5-small # max-len 512
+      set_custom_query_prefix: "query: "
+      set_custom_passage_prefix: "passage: "
+    intfloat-base:
+      model: intfloat/multilingual-e5-base # max-len 512
+      set_custom_query_prefix: "query: "
+      set_custom_passage_prefix: "passage: "
+    intfloat-instruct:
+      model: intfloat/multilingual-e5-large-instruct # max-len 512
+      set_custom_query_prefix: "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: "
 
   # open-ai:
   #   open-ai-3-small: text-embedding-3-small # max-len 8191 

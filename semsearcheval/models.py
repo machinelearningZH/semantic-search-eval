@@ -11,7 +11,6 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from semsearcheval.data import Result
-from semsearcheval.logger import logger
 
 
 class Model(ABC):
@@ -40,6 +39,11 @@ class Model(ABC):
     def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
         pass
 
+    @staticmethod
+    def _prepend_prefix(texts: List[str], prefix: str) -> List[str]:
+        """Prepends a custom prefix string to each text."""
+        return [f"{prefix}{text}" for text in texts]
+
     def run(self, queries: List[str], docs: List[str]) -> Result:
         """
         A convenience method that runs the `compute_similarity` function and
@@ -55,17 +59,6 @@ class Model(ABC):
 class HuggingFaceModel(Model):
     """
     A model that uses Hugging Face's SentenceTransformers to generate embeddings.
-
-    Supports several encoding mechanisms (checked in priority order):
-
-    1. jina_adapter ("v3" or "v5"): uses hardcoded task/prompt_name pairs for
-       Jina embedding models. Overrides all other prompt/prefix settings.
-    2. custom prefix (set_custom_query_prefix / set_custom_doc_prefix): raw
-       strings prepended to each text at inference time. Mutually exclusive
-       with prompt_name booleans.
-    3. prompt_name (use_query_prompt / use_passage_prompt): uses
-       SentenceTransformer's built-in prompt_name feature.
-    4. Default: plain encode with no prompt or task.
     """
 
     # Hardcoded Jina adapter configurations.
@@ -79,54 +72,35 @@ class HuggingFaceModel(Model):
         self,
         name: str,
         model_path: str,
-        use_query_prompt: bool = False,
-        use_passage_prompt: bool = False,
+        set_builtin_query_prompt: str = None,
+        set_builtin_passage_prompt: str = None,
         set_custom_query_prefix: str = None,
-        set_custom_doc_prefix: str = None,
-        jina_adapter: str = None,
+        set_custom_passage_prefix: str = None,
+        set_query_task_prompt: str = None,
+        set_passage_task_prompt: str = None,
     ) -> None:
         super().__init__(name, model_path)
         self.identifier = f"open-source model {model_path}"
 
-        # Jina adapter overrides all other prompt/prefix settings.
-        if jina_adapter is not None:
-            if jina_adapter not in self.JINA_CONFIGS:
-                raise ValueError(
-                    f"Model '{name}': jina_adapter must be one of "
-                    f"{list(self.JINA_CONFIGS.keys())}, got '{jina_adapter}'."
-                )
-            has_other = (
-                use_query_prompt or use_passage_prompt
-                or set_custom_query_prefix is not None
-                or set_custom_doc_prefix is not None
-            )
-            if has_other:
-                logger.info(
-                    f"Model '{name}': jina_adapter='{jina_adapter}' is set. "
-                    "Other prompt/prefix parameters will be ignored."
-                )
-            self.jina_adapter = jina_adapter
-            self.query_name = None
-            self.passage_name = None
-            self.custom_query_prefix = None
-            self.custom_doc_prefix = None
-            return
-
-        self.jina_adapter = None
-
         # Validate: prompt_name and custom prefix are mutually exclusive.
-        has_prompt_name = use_query_prompt or use_passage_prompt
-        has_custom_prefix = set_custom_query_prefix is not None or set_custom_doc_prefix is not None
-        if has_prompt_name and has_custom_prefix:
+        both_specified_query = (
+            set_builtin_query_prompt is not None and set_custom_query_prefix is not None
+        )
+        both_specified_passage = (
+            set_builtin_passage_prompt is not None and set_custom_passage_prefix is not None
+        )
+        if both_specified_query or both_specified_passage:
             raise ValueError(
-                f"Model '{name}': cannot use both prompt_name (use_query_prompt / use_passage_prompt) "
-                "and custom prefix (set_custom_query_prefix / set_custom_doc_prefix) at the same time."
+                f"Model '{name}': cannot use both prompt_name (set_builtin_query_prompt / set_builtin_passage_prompt) "
+                "and custom prefix (set_custom_query_prefix / set_custom_passage_prefix) at the same time."
             )
 
-        self.query_name = "query" if use_query_prompt else None
-        self.passage_name = "passage" if use_passage_prompt else None
+        self.builtin_query_name = set_builtin_query_prompt
+        self.builtin_passage_name = set_builtin_passage_prompt
         self.custom_query_prefix = set_custom_query_prefix
-        self.custom_doc_prefix = set_custom_doc_prefix
+        self.custom_passage_prefix = set_custom_passage_prefix
+        self.query_task_prompt = set_query_task_prompt
+        self.passage_task_prompt = set_passage_task_prompt
 
     def load_model(self) -> None:
         """Load the SentenceTransformer model."""
@@ -145,82 +119,31 @@ class HuggingFaceModel(Model):
             kwargs["task"] = task
         return self.model.encode(segments, **kwargs)
 
-    def encode_with_prompt(self, input: List[str], prompt: str):
+    def encode_with_prompt(
+        self, input: List[str], prompt_name: str, task: str = None
+    ) -> List[List[float]]:
         """Helper function to encode input with a specific prompt_name if needed."""
-        if prompt:
-            return self.encode(input, prompt_name=prompt)
+        if prompt_name:
+            return self.encode(input, prompt_name=prompt_name, task=task)
         return self.encode(input)
-
-    def _prepend_prefix(self, texts: List[str], prefix: str) -> List[str]:
-        """Prepends a custom prefix string to each text."""
-        if prefix is None:
-            return texts
-        return [f"{prefix}{text}" for text in texts]
 
     def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
         """Computes the cosine similarity between query and document embeddings."""
-        # Jina adapter path: use hardcoded task + prompt_name per role.
-        if self.jina_adapter is not None:
-            q_task, q_prompt, d_task, d_prompt = self.JINA_CONFIGS[self.jina_adapter]
-            query_emb = self.encode(queries, prompt_name=q_prompt, task=q_task)
-            doc_emb = self.encode(docs, prompt_name=d_prompt, task=d_task)
-            return self.model.similarity(query_emb, doc_emb).numpy()
-
-        # Custom prefix path: prepend strings and encode without prompt_name.
-        if self.custom_query_prefix is not None or self.custom_doc_prefix is not None:
+        # Prepend custom prefixes if specified. This modifies the input texts before encoding.
+        if self.custom_query_prefix:
             queries = self._prepend_prefix(queries, self.custom_query_prefix)
-            docs = self._prepend_prefix(docs, self.custom_doc_prefix)
-            query_emb = self.encode(queries)
-            doc_emb = self.encode(docs)
-            return self.model.similarity(query_emb, doc_emb).numpy()
 
-        # Default path: use prompt_name mechanism (or plain encode if no prompts).
-        query_emb = self.encode_with_prompt(queries, self.query_name)
-        doc_emb = self.encode_with_prompt(docs, self.passage_name)
+        if self.custom_passage_prefix:
+            docs = self._prepend_prefix(docs, self.custom_passage_prefix)
+
+        # Encode queries and documents with the appropriate prompts if specified.
+        query_emb = self.encode_with_prompt(
+            queries, prompt_name=self.builtin_query_name, task=self.query_task_prompt
+        )
+        doc_emb = self.encode_with_prompt(
+            docs, prompt_name=self.builtin_passage_name, task=self.passage_task_prompt
+        )
         return self.model.similarity(query_emb, doc_emb).numpy()
-
-
-class IntFloatModel(HuggingFaceModel):
-    """
-    A variation of HuggingFaceModel that prepends 'query:' to queries and 'passage:' to documents.
-    Computes similarity between these enriched queries and documents.
-    """
-
-    def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
-        # Prepend the string 'query: ' and 'passage: ' to each query and document respectively
-        queries = [f"query: {query}" for query in queries]
-        docs = [f"passage: {doc}" for doc in docs]
-
-        # Encode the modified queries and documents
-        input_texts = queries + docs
-        embeddings = self.encode(input_texts)
-
-        # Compute similarity as the dot product of the query and document embeddings (identical to cosine similarity as vectors are normalized)
-        scores = (embeddings[: len(queries)] @ embeddings[len(queries) :].T).tolist()
-        return np.array(scores)
-
-
-class IntFloatInstructModel(HuggingFaceModel):
-    """
-    Similar to IntFloatModel, but generates an instruction-based prompt for each query.
-    This is useful for retrieval tasks that require structured input (e.g., "search for a document").
-    """
-
-    @staticmethod
-    def get_detailed_instruct(task_description: str, query: str) -> str:
-        return f"Instruct: {task_description}\nQuery: {query}"
-
-    def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
-        # Add instruction-based prompt to each query
-        task = "Given a web search query, retrieve relevant passages that answer the query"
-        queries = [self.get_detailed_instruct(task, query) for query in queries]
-
-        # Encode the modified queries and documents
-        input_texts = queries + docs
-        embeddings = self.encode(input_texts)
-
-        scores = (embeddings[: len(queries)] @ embeddings[len(queries) :].T).tolist()
-        return np.array(scores)
 
 
 class OpenAIModel(Model):

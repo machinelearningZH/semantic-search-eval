@@ -36,7 +36,7 @@ def test_huggingface_mutual_exclusivity():
         HuggingFaceModel(
             "bad-model",
             "some/model",
-            use_query_prompt=True,
+            set_builtin_query_prompt="query",
             set_custom_query_prefix="query: ",
         )
 
@@ -47,45 +47,12 @@ def test_huggingface_custom_prefix_init():
         "prefix-model",
         "some/model",
         set_custom_query_prefix="search_query: ",
-        set_custom_doc_prefix="search_document: ",
+        set_custom_passage_prefix="search_document: ",
     )
     assert model.custom_query_prefix == "search_query: "
-    assert model.custom_doc_prefix == "search_document: "
-    assert model.query_name is None
-    assert model.passage_name is None
-
-
-def test_huggingface_jina_adapter_v3_init():
-    """Jina v3 adapter config is stored correctly."""
-    model = HuggingFaceModel("jina-v3", "jinaai/jina-embeddings-v3", jina_adapter="v3")
-    assert model.jina_adapter == "v3"
-    assert model.query_name is None
-    assert model.passage_name is None
-    assert model.custom_query_prefix is None
-
-
-def test_huggingface_jina_adapter_v5_init():
-    """Jina v5 adapter config is stored correctly."""
-    model = HuggingFaceModel("jina-v5", "jinaai/jina-embeddings-v5-text-small", jina_adapter="v5")
-    assert model.jina_adapter == "v5"
-
-
-def test_huggingface_jina_adapter_invalid():
-    """Invalid jina_adapter value raises ValueError."""
-    with pytest.raises(ValueError, match="jina_adapter must be one of"):
-        HuggingFaceModel("bad", "some/model", jina_adapter="v4")
-
-
-def test_huggingface_jina_adapter_overrides_other_params():
-    """jina_adapter overrides other prompt/prefix params without error."""
-    model = HuggingFaceModel(
-        "jina-v5", "some/model", jina_adapter="v5",
-        use_query_prompt=True, set_custom_query_prefix="query: ",
-    )
-    # jina_adapter takes priority, other params are ignored
-    assert model.jina_adapter == "v5"
-    assert model.query_name is None
-    assert model.custom_query_prefix is None
+    assert model.custom_passage_prefix == "search_document: "
+    assert model.builtin_query_name is None
+    assert model.builtin_passage_name is None
 
 
 def test_openai_model(mocker: MockerFixture, test_queries, test_docs):
