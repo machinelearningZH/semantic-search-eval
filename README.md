@@ -7,7 +7,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/machinelearningZH/semantic-search-eval.svg)](https://github.com/machinelearningZH/semantic-search-eval/stargazers)
 [![GitHub Issues](https://img.shields.io/github/issues/machinelearningZH/semantic-search-eval.svg)](https://github.com/machinelearningZH/semantic-search-eval/issues)
 [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/machinelearningZH/semantic-search-eval.svg)](https://img.shields.io/github/issues-pr/machinelearningZH/semantic-search-eval)
-[![Current Version](https://img.shields.io/badge/version-0.1-green.svg)](https://github.com/machinelearningZH/semantic-search-eval)
+[![Current Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/machinelearningZH/semantic-search-eval)
 <a href="https://github.com/astral-sh/ruff"><img alt="linting - Ruff" class="off-glb" loading="lazy" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
 
 <details>
