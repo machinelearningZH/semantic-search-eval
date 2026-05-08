@@ -3,7 +3,7 @@
 **A framework for evaluating semantic search across custom datasets, metrics, and embedding backends.**
 
 ![GitHub License](https://img.shields.io/github/license/machinelearningZH/semantic-search-eval)
-[![PyPI - Python](https://img.shields.io/badge/python-v3.11+-blue.svg)](https://github.com/machinelearningZH/semantic-search-eval)
+[![PyPI - Python](https://img.shields.io/badge/python-v3.13+-blue.svg)](https://github.com/machinelearningZH/semantic-search-eval)
 [![GitHub Stars](https://img.shields.io/github/stars/machinelearningZH/semantic-search-eval.svg)](https://github.com/machinelearningZH/semantic-search-eval/stargazers)
 [![GitHub Issues](https://img.shields.io/github/issues/machinelearningZH/semantic-search-eval.svg)](https://github.com/machinelearningZH/semantic-search-eval/issues)
 [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/machinelearningZH/semantic-search-eval.svg)](https://img.shields.io/github/issues-pr/machinelearningZH/semantic-search-eval)
@@ -33,7 +33,7 @@
 ## Features
 - **Flexible model integration**: HuggingFace, OpenAI, BM25, and more.
 - **Simple YAML-based configuration**.
-- **Custom evaluation metrics**: e.g., Accuracy@k, Latency.
+- **Custom evaluation metrics**: e.g., Accuracy@k, NDCG@k, Latency.
 - **Integrated visualizations** via `seaborn`/`matplotlib`.
 
 ## Installation
@@ -67,6 +67,9 @@ You need two input files:
 > [!NOTE]
 > Embedding models have a maximum input length - more on this in the next section. If your documents exceed this length, they should be split into smaller chunks before evaluation to ensure compatibility with the models. All preprocessing (e.g., cleaning, tokenization) should be completed before evaluation, as it is not (yet) supported in this toolkit.
 
+> [!NOTE]
+> The current implementation of this toolkit assumes **exactly one relevant document per query**. All metrics (Accuracy@k, NDCG@k, etc.) are designed for this single-answer evaluation scenario. If you have multiple relevant documents per query, the current metrics will not produce meaningful results.
+
 ### Configuration
 Create a YAML config to define datasets, models, and metrics. Use [`configs/example.yaml`](configs/example.yaml) as a template.
 
@@ -76,7 +79,10 @@ Key fields:
 - `docs` and `queries`: paths to your documents and queries in CSV or parquet format
 - `is-public-data`: set to true to use OpenAI query creator if data is public
 - `max-len`: set to the **shortest model limit** to ensure fair evaluation with same input text length for all models
-- `models`: define model backends and options
+- `models`: define model backends and options. Supported backends are `huggingface`, `lexical`, and `open-ai`. HuggingFace models support the following optional parameters (check the usage examples on HuggingFace to see whether a model uses either of these parameters):
+  - `set_builtin_query_prompt` / `set_builtin_passage_prompt`: use a model's built-in named prompt for queries/passages
+  - `set_query_task_prompt` / `set_passage_task_prompt`: pass a task string to the encoder (e.g. for Jina models)
+  - `set_custom_query_prefix` / `set_custom_passage_prefix`: prepend a custom string to each query/passage at inference time (mutually exclusive with the built-in prompt options)
 
 ### OpenAI Key
 To use OpenAI-based features:

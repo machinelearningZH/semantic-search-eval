@@ -39,6 +39,11 @@ class Model(ABC):
     def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
         pass
 
+    @staticmethod
+    def _prepend_prefix(texts: List[str], prefix: str) -> List[str]:
+        """Prepends a custom prefix string to each text."""
+        return [f"{prefix}{text}" for text in texts]
+
     def run(self, queries: List[str], docs: List[str]) -> Result:
         """
         A convenience method that runs the `compute_similarity` function and
@@ -55,88 +60,84 @@ class HuggingFaceModel(Model):
     """
     A model that uses Hugging Face's SentenceTransformers to generate embeddings.
 
-    Supports optional query and passage prompts for specialized encoding.
+    Supports optional built-in prompts and custom prefixes for queries and passages.
     """
 
     def __init__(
         self,
         name: str,
         model_path: str,
-        use_query_prompt: bool = False,
-        use_passage_prompt: bool = False,
+        set_builtin_query_prompt: str = None,
+        set_builtin_passage_prompt: str = None,
+        set_custom_query_prefix: str = None,
+        set_custom_passage_prefix: str = None,
+        set_query_task_prompt: str = None,
+        set_passage_task_prompt: str = None,
     ) -> None:
         super().__init__(name, model_path)
         self.identifier = f"open-source model {model_path}"
-        self.query_name = "query" if use_query_prompt else None
-        self.passage_name = "passage" if use_passage_prompt else None
+
+        # Validate: prompt_name and custom prefix are mutually exclusive.
+        both_specified_query = (
+            set_builtin_query_prompt is not None and set_custom_query_prefix is not None
+        )
+        both_specified_passage = (
+            set_builtin_passage_prompt is not None and set_custom_passage_prefix is not None
+        )
+        if both_specified_query or both_specified_passage:
+            raise ValueError(
+                f"Model '{name}': cannot use both prompt_name (set_builtin_query_prompt / set_builtin_passage_prompt) "
+                "and custom prefix (set_custom_query_prefix / set_custom_passage_prefix) at the same time."
+            )
+
+        self.builtin_query_name = set_builtin_query_prompt
+        self.builtin_passage_name = set_builtin_passage_prompt
+        self.custom_query_prefix = set_custom_query_prefix
+        self.custom_passage_prefix = set_custom_passage_prefix
+        self.query_task_prompt = set_query_task_prompt
+        self.passage_task_prompt = set_passage_task_prompt
 
     def load_model(self) -> None:
         """Load the SentenceTransformer model."""
         self.model = SentenceTransformer(self.model_path, trust_remote_code=True)
 
-    def encode(self, segments: List[str], prompt_name: str = None) -> List[List[float]]:
+    def encode(
+        self, segments: List[str], prompt_name: str = None, task: str = None
+    ) -> List[List[float]]:
         """Encodes the input segments into embeddings using the SentenceTransformer model."""
-        return self.model.encode(
-            segments,
+        kwargs = dict(
             normalize_embeddings=True,
             prompt_name=prompt_name,
             show_progress_bar=True,
+            task=task,
         )
+        return self.model.encode(segments, **kwargs)
 
-    def encode_with_prompt(self, input: List[str], prompt: str):
-        """Helper function to encode input with a specific prompt if needed."""
-        if prompt:
-            return self.encode(input, prompt_name=prompt)
+    def encode_with_prompt(
+        self, input: List[str], prompt_name: str, task: str = None
+    ) -> List[List[float]]:
+        """Helper function to encode input with a specific prompt_name if needed."""
+        if prompt_name:
+            return self.encode(input, prompt_name=prompt_name, task=task)
         return self.encode(input)
 
     def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
         """Computes the cosine similarity between query and document embeddings."""
-        queries = self.encode_with_prompt(queries, self.query_name)
-        docs = self.encode_with_prompt(docs, self.passage_name)
-        return self.model.similarity(queries, docs).numpy()
+        # Prepend custom prefixes if specified. This modifies the input texts before encoding.
+        if self.custom_query_prefix:
+            queries = self._prepend_prefix(queries, self.custom_query_prefix)
 
+        if self.custom_passage_prefix:
+            docs = self._prepend_prefix(docs, self.custom_passage_prefix)
 
-class IntFloatModel(HuggingFaceModel):
-    """
-    A variation of HuggingFaceModel that prepends 'query:' to queries and 'passage:' to documents.
-    Computes similarity between these enriched queries and documents.
-    """
-
-    def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
-        # Prepend the string 'query: ' and 'passage: ' to each query and document respectively
-        queries = [f"query: {query}" for query in queries]
-        docs = [f"passage: {doc}" for doc in docs]
-
-        # Encode the modified queries and documents
-        input_texts = queries + docs
-        embeddings = self.encode(input_texts)
-
-        # Compute similarity as the dot product of the query and document embeddings (identical to cosine similarity as vectors are normalized)
-        scores = (embeddings[: len(queries)] @ embeddings[len(queries) :].T).tolist()
-        return np.array(scores)
-
-
-class IntFloatInstructModel(HuggingFaceModel):
-    """
-    Similar to IntFloatModel, but generates an instruction-based prompt for each query.
-    This is useful for retrieval tasks that require structured input (e.g., "search for a document").
-    """
-
-    @staticmethod
-    def get_detailed_instruct(task_description: str, query: str) -> str:
-        return f"Instruct: {task_description}\nQuery: {query}"
-
-    def compute_similarity(self, queries: List[str], docs: List[str]) -> np.array:
-        # Add instruction-based prompt to each query
-        task = "Given a web search query, retrieve relevant passages that answer the query"
-        queries = [self.get_detailed_instruct(task, query) for query in queries]
-
-        # Encode the modified queries and documents
-        input_texts = queries + docs
-        embeddings = self.encode(input_texts)
-
-        scores = (embeddings[: len(queries)] @ embeddings[len(queries) :].T).tolist()
-        return np.array(scores)
+        # Encode queries and documents with the appropriate prompts if specified.
+        query_emb = self.encode_with_prompt(
+            queries, prompt_name=self.builtin_query_name, task=self.query_task_prompt
+        )
+        doc_emb = self.encode_with_prompt(
+            docs, prompt_name=self.builtin_passage_name, task=self.passage_task_prompt
+        )
+        return self.model.similarity(query_emb, doc_emb).numpy()
 
 
 class OpenAIModel(Model):
