@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from semsearcheval.data import Result
-from semsearcheval.metrics import Accuracy, Latency, NDCG
+from semsearcheval.metrics import NDCG, Accuracy, Latency
 
 
 @pytest.mark.parametrize(
@@ -29,8 +29,12 @@ def test_accuracy_at_k(similarity, gold_indices, k, expected):
         # Gold doc at rank 2 for query 0, not in top 1 for query 1
         # Query 0: gold=0, scores=[0,1,0] -> ranked [1,0,2] -> gold at rank 2 -> 1/log2(3)
         # Query 1: gold=1, scores=[0,0,1] -> ranked [2,0,1] -> gold at rank 3 -> 1/log2(4)
-        (np.array([[0, 1, 0], [0, 0, 1]]), np.array([0, 1]), 10,
-         (1.0 / np.log2(3) + 1.0 / np.log2(4)) / 2 * 100),
+        (
+            np.array([[0, 1, 0], [0, 0, 1]]),
+            np.array([0, 1]),
+            10,
+            (1.0 / np.log2(3) + 1.0 / np.log2(4)) / 2 * 100,
+        ),
         # Gold doc outside top 1 for both -> 0%
         (np.array([[0, 1, 0], [0, 0, 1]]), np.array([0, 1]), 1, 0.0),
     ],
