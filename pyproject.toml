@@ -3,7 +3,7 @@ name = "semsearcheval"
 version = "1.1.0"
 description = "A package for evaluating search-based models using various metrics."
 authors = [
-  { name = "Statistisches Amt Kanton Zürich, Team Data", email = "datashop@statistik.zh.ch" },
+  { name = "Amt für Statistik und Daten Kanton Zürich, Team Data", email = "datashop@statistik.zh.ch" },
 ]
 license = { file = "LICENSE" }
 readme = "README.md"

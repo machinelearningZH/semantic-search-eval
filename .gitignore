@@ -174,3 +174,4 @@ cython_debug/
 .pypirc
 .DS_Store
  _ gh.code-workspace
+sw-design-analysis.md
