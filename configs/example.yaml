@@ -31,6 +31,12 @@ models:
     jina-v2: jinaai/jina-embeddings-v2-base-de # max-len 8192
     all-MiniLM-v2: sentence-transformers/all-MiniLM-L6-v2 # max-len 512
     granite: ibm-granite/granite-embedding-278m-multilingual # max-len 512
+    # Set embedding_dims to truncate embeddings to the first N dims (Matryoshka-style)
+    # before computing similarity. Omit or leave unset to use the model's full dimension.
+    # If the target exceeds the model's native dimension, truncation is skipped.
+    granite-256:
+      model: ibm-granite/granite-embedding-278m-multilingual
+      embedding_dims: 256
     nomic: 
       model: nomic-ai/nomic-embed-text-v2-moe # max-len 512
       set_builtin_query_prompt: query

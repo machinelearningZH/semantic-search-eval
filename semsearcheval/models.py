@@ -11,6 +11,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from semsearcheval.data import Result
+from semsearcheval.utils import truncate_embedding_dims
 
 
 class Model(ABC):
@@ -22,10 +23,11 @@ class Model(ABC):
     similarity scores between queries and documents.
     """
 
-    def __init__(self, name: str, model_path: str) -> None:
+    def __init__(self, name: str, model_path: str, embedding_dims: int = None) -> None:
         self.name = name
         self.identifier = f"model {model_path}"
         self.model_path = model_path
+        self.embedding_dims = embedding_dims
 
     @abstractmethod
     def load_model(self) -> None:
@@ -73,8 +75,9 @@ class HuggingFaceModel(Model):
         set_custom_passage_prefix: str = None,
         set_query_task_prompt: str = None,
         set_passage_task_prompt: str = None,
+        embedding_dims: int = None,
     ) -> None:
-        super().__init__(name, model_path)
+        super().__init__(name, model_path, embedding_dims)
         self.identifier = f"open-source model {model_path}"
 
         # Validate: prompt_name and custom prefix are mutually exclusive.
@@ -137,6 +140,8 @@ class HuggingFaceModel(Model):
         doc_emb = self.encode_with_prompt(
             docs, prompt_name=self.builtin_passage_name, task=self.passage_task_prompt
         )
+        query_emb = truncate_embedding_dims(query_emb, self.embedding_dims)
+        doc_emb = truncate_embedding_dims(doc_emb, self.embedding_dims)
         return self.model.similarity(query_emb, doc_emb).numpy()
 
 
@@ -145,8 +150,8 @@ class OpenAIModel(Model):
     A model that uses the OpenAI API to generate embeddings and compute similarity.
     """
 
-    def __init__(self, name: str, model_id: str) -> None:
-        super().__init__(name, model_id)
+    def __init__(self, name: str, model_id: str, embedding_dims: int = None) -> None:
+        super().__init__(name, model_id, embedding_dims)
         self.model = model_id
         self.identifier = f"OpenAI model {model_id}"
 
@@ -171,6 +176,8 @@ class OpenAIModel(Model):
         """Encodes queries and documents, then computes cosine similarity."""
         queries = self.encode(queries)
         docs = self.encode(docs)
+        queries = truncate_embedding_dims(queries, self.embedding_dims)
+        docs = truncate_embedding_dims(docs, self.embedding_dims)
         return cosine_similarity(queries, docs)
 
 
