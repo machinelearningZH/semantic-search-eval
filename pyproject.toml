@@ -62,3 +62,6 @@ line-ending = "auto"
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2
+
+[tool.uv]
+constraint-dependencies = ["certifi>=2026.10.19"]
