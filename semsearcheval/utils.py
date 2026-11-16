@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List
 
+import numpy as np
 import tiktoken
 from ruamel.yaml import YAML
 from tqdm import tqdm
@@ -37,6 +38,27 @@ def run_funct_in_parallel(function: Callable[[Any], Any], items: Iterable[Any]) 
                 results[index] = f"Error: {str(e)}"
                 logger.exception(f"Error processing input {index}: {str(e)}")
         return results
+
+
+def truncate_embedding_dims(embeddings: np.ndarray, dims: int) -> np.ndarray:
+    """
+    Truncates embeddings to the first `dims` dimensions (Matryoshka-style)
+    and re-normalizes to unit length. If `dims` is None or exceeds the native
+    dimension, embeddings are returned unchanged.
+    """
+    native_dims = embeddings.shape[1]
+    if dims is None or dims >= native_dims:
+        if dims is not None and dims > native_dims:
+            logger.info(
+                f"Requested {dims} dims but model has {native_dims}; keeping full dim."
+            )
+        return embeddings
+
+    truncated = embeddings[:, :dims]
+    norms = np.linalg.norm(truncated, axis=1, keepdims=True)
+    norms[norms == 0] = 1  # Avoid division by zero
+    logger.info(f"Truncated embeddings from {native_dims} to {dims} dims.")
+    return truncated / norms
 
 
 def truncate_to_max_len(texts: List[str], max_len: int, source: str) -> List[str]:
