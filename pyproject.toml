@@ -64,4 +64,4 @@ line-ending = "auto"
 lines-after-imports = 2
 
 [tool.uv]
-constraint-dependencies = ["certifi>=2026.10.19"]
+exclude-newer = "7 days"
